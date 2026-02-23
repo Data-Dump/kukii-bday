@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Scroll Gallery</title>
+    <!-- Import Elegant Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=Montserrat:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap"
+        rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <!-- Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow-x: hidden;
+            background: black;
+            color: white;
+            font-family: 'Helvetica Neue', Helvetica, sans-serif;
+        }
+
+        /* Prevent scrolling during the 30-second load */
+        body.loading {
+            overflow: hidden;
+        }
+
+        /* The Loading Curtain */
+        .curtain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #050505;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            transition: transform 1.5s cubic-bezier(0.77, 0, 0.175, 1);
+            /* Slide up to hide */
+        }
+
+        .curtain.hidden {
+            transform: translateY(-100%);
+        }
+
+        .loader-msgs {
+            position: relative;
+            height: 4rem;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
+
+        .loader-msg {
+            position: absolute;
+            font-size: 2.2rem;
+            letter-spacing: 2px;
+            font-weight: 300;
+            opacity: 0;
+            transition: opacity 1.5s ease-in-out;
+            text-align: center;
+            /* Give it a cute aesthetic glow */
+            text-shadow: 0 0 10px rgba(255, 192, 203, 0.5);
+        }
+
+        .loader-msg.active {
+            opacity: 1;
+        }
+
+        .loader-progress {
+            width: 80%;
+            /* Wider progress bar */
+            max-width: 400px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            border-radius: 3px;
+        }
+
+        .loader-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 0%;
+            background: white;
+            transition: width 0.1s linear;
+        }
+
+        .start-btn {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            color: black;
+            background: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s, transform 0.3s;
+            margin-top: 30px;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            font-weight: bold;
+        }
+
+        .start-btn.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .start-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.4);
+        }
+
+        .hidden-element {
+            display: none !important;
+        }
+
+
+        section {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3rem;
+        }
+
+        .panel {
+            opacity: 0;
+            transform: translateY(100px);
+        }
+
+        .gallery-wrapper {
+            /* Gives us scroll room for the horizontal swipe */
+            height: 600vh;
+        }
+
+        .gallery-container {
+            height: 100vh;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            background: black;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            /* Creates the globe/fisheye curved black edge as seen in the photo */
+            background: radial-gradient(ellipse 110% 120% at 50% 50%, transparent 40%, black 100%);
+            z-index: 2;
+        }
+
+        .gallery-grid {
+            display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            gap: 1.25rem;
+            height: 120vh;
+            /* Slightly taller than screen to hide top/bottom edges */
+            align-content: flex-start;
+            padding: 0 5vw;
+        }
+
+        .gallery-item {
+            width: 15vw;
+            /* Much denser size for PC viewing */
+            max-width: 250px;
+            /* Cap width to keep it dense on ultrawides */
+            border-radius: 12px;
+            display: block;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            flex-shrink: 0;
+            margin-bottom: 0;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
+            position: relative;
+            z-index: 1;
+            perspective: 1000px;
+            /* 3D effect container */
+            background: transparent;
+        }
+
+        .gallery-item-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-style: preserve-3d;
+            border-radius: 12px;
+        }
+
+        .gallery-item:hover {
+            transform: scale(1.15);
+            /* Keep scale on the parent wrapper */
+            z-index: 10;
+        }
+
+        .gallery-item:hover .gallery-item-inner {
+            transform: rotateY(180deg);
+            /* Flip the inner wrapper */
+            box-shadow: 0 20px 40px rgba(255, 192, 203, 0.4);
+            /* soft pink glow */
+        }
+
+        .gallery-item-front,
+        .gallery-item-back {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #111;
+        }
+
+        .gallery-item-back {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform: rotateY(180deg);
+            background: #fdfbf7;
+            /* Polaroid paper color */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #ddd;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.05);
+            /* subtle inner shadow */
+        }
+
+        .gallery-item-back p {
+            font-family: 'Caveat', cursive;
+            font-size: 1.8rem;
+            color: #333;
+            margin: 0;
+            line-height: 1.2;
+            transform: rotate(-2deg);
+            /* slight tilt for handwritten feel */
+        }
+
+        /* --- PAD/TABLET (iPad) FIXES --- */
+        @media (min-width: 768px) and (max-width: 1100px) {
+            .final-letter {
+                width: 80vw;
+                max-height: 80vh;
+                /* tighter to prevent hitting edges on squarish screens */
+                padding: 40px 30px;
+                margin: 0;
+                margin-top: 10vh;
+                /* Replaces 'auto' to ensure top is never clipped */
+                margin-bottom: 10vh;
+                margin-left: 5vw;
+                margin-right: 15vw;
+                display: block;
+                /* crucial for not clipping overflow top/bottom in flex */
+                overflow-y: auto;
+            }
+
+            .final-letter h1 {
+                font-size: 2.8rem;
+                margin-top: 10px;
+                margin-bottom: 20px;
+            }
+
+            .final-letter p {
+                font-size: 1.15rem;
+                margin-bottom: 15px;
+            }
+        }
+
+        /* --- VOICE NOTE BUTTON --- */
+        .voice-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 15px auto;
+            padding: 12px 25px;
+            font-size: 1rem;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 500;
+            color: #ffb6c1;
+            background: rgba(255, 182, 193, 0.1);
+            border: 1px solid rgba(255, 182, 193, 0.4);
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(255, 182, 193, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .voice-btn:hover {
+            background: rgba(255, 182, 193, 0.2);
+            box-shadow: 0 0 25px rgba(255, 182, 193, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .voice-btn.playing {
+            animation: pulse-glow 1.5s infinite alternate;
+            background: rgba(255, 182, 193, 0.3);
+            border-color: #ff7eb3;
+        }
+
+        @keyframes pulse-glow {
+            from {
+                box-shadow: 0 0 10px rgba(255, 182, 193, 0.3);
+            }
+
+            to {
+                box-shadow: 0 0 30px rgba(255, 126, 179, 0.8);
+            }
+        }
+
+        /* --- CONFETTI BUTTON --- */
+        .surprise-btn {
+            margin-top: 10px;
+            margin-bottom: 20px;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 500;
+            color: #fff;
+            background: linear-gradient(45deg, #ff758c 0%, #ff7eb3 100%);
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 117, 140, 0.4);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .surprise-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 8px 25px rgba(255, 117, 140, 0.6);
+        }
+
+        /* --- SURPRISE VIDEO OVERLAY --- */
+        #video-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 99999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1.5s ease;
+        }
+
+        #video-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #surprise-video {
+            max-width: 90vw;
+            max-height: 85vh;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(255, 117, 140, 0.4);
+            outline: none;
+        }
+
+        /* Particle Canvas */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            /* Let clicks pass through to the gallery below it */
+            z-index: 9000;
+            /* High enough to be over the gallery and letter, but below the curtain */
+            opacity: 0.6;
+        }
+
+        @media (max-width: 768px) {
+            .gallery-grid {
+                height: 110vh;
+                /* Just enough to overflow top/bottom safely */
+                gap: 0.8rem;
+                padding: 0 2vw;
+                /* Less padding on small screens */
+            }
+
+            .gallery-item {
+                width: 28vw;
+                /* Smaller sizes for mobile that show ~3 per column */
+                border-radius: 8px;
+                /* Slightly tighter curves on mobile */
+            }
+        }
+
+        .gallery-item img,
+        .gallery-item video {
+            width: 100%;
+            height: auto;
+            /* We remove object-fit: cover, let it just act like a normal image */
+            display: block;
+        }
+
+        .final-letter {
+            width: 70vw;
+            /* Broader width */
+            max-height: 85vh;
+            /* Never taller than screen */
+            max-width: 800px;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 192, 203, 0.3);
+            border-radius: 20px;
+            padding: 50px;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(255, 192, 203, 0.2);
+            color: #fff;
+            box-sizing: border-box;
+            /* Padding doesn't add to width/height */
+
+            /* Layout: Use block instead of flex-center so long text doesn't overflow the top bounds before scrolling */
+            display: block;
+
+            /* Positioning it to look good inside flex columns */
+            margin: auto 0;
+            margin-left: 10vw;
+            /* Spacing from last image */
+            margin-right: 15vw;
+            /* Extra padding at the end of scroll */
+            overflow-y: auto;
+            /* Allow scrolling within the letter if content is too tall */
+        }
+
+        .final-letter h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5rem;
+            color: #ffb6c1;
+            /* Soft pink */
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+
+        .final-letter p {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.25rem;
+            line-height: 1.8;
+            font-weight: 300;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .final-letter {
+                width: 85vw;
+                /* Fills most of phone width */
+                max-height: 75vh;
+                /* Prevents it from hitting browser UI on top/bottom */
+                padding: 25px 15px;
+                /* Tighter padding to save space */
+                margin-left: 5vw;
+                margin-right: 10vw;
+                /* Sufficient right margin so the scroll feels complete */
+                border-radius: 12px;
+            }
+
+            .final-letter h1 {
+                font-size: 1.8rem;
+                margin-bottom: 15px;
+            }
+
+            .final-letter p {
+                font-size: 1rem;
+                line-height: 1.5;
+                margin-bottom: 15px;
+            }
+        }
+
+        /* --- HEART PHOTO GRID --- */
+        .heart-section {
+            width: 100vw;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+            padding: 20px;
+            margin-top: 0;
+            gap: 20px;
+        }
+
+        .heart-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 10px;
+            width: 90vw;
+            max-width: 800px;
+            aspect-ratio: 7 / 6;
+        }
+
+        .heart-grid-item {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            /* box-shadow: 0 4px 15px rgba(255, 182, 193, 0.4); */
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .heart-grid-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* Must use cover to fill the grid square completely without gaps */
+            object-position: center 20%;
+            /* Shift focus upward so heads aren't cut out */
+            display: block;
+        }
+
+        /* Shaping the 18 photos into a heart on a 7x6 grid */
+        /* Top humps */
+        .heart-grid-item:nth-child(1) {
+            grid-area: 1 / 2 / 2 / 3;
+        }
+
+        .heart-grid-item:nth-child(2) {
+            grid-area: 1 / 3 / 2 / 4;
+        }
+
+        .heart-grid-item:nth-child(3) {
+            grid-area: 1 / 5 / 2 / 6;
+        }
+
+        .heart-grid-item:nth-child(4) {
+            grid-area: 1 / 6 / 2 / 7;
+        }
+
+        /* Second row */
+        .heart-grid-item:nth-child(5) {
+            grid-area: 2 / 1 / 3 / 2;
+        }
+
+        .heart-grid-item:nth-child(6) {
+            grid-area: 2 / 2 / 3 / 4;
+        }
+
+        /* spanning to fill gap */
+        .heart-grid-item:nth-child(7) {
+            grid-area: 2 / 4 / 3 / 5;
+        }
+
+        .heart-grid-item:nth-child(8) {
+            grid-area: 2 / 5 / 3 / 7;
+        }
+
+        /* spanning to fill gap */
+        .heart-grid-item:nth-child(9) {
+            grid-area: 2 / 7 / 3 / 8;
+        }
+
+        /* Third row */
+        .heart-grid-item:nth-child(10) {
+            grid-area: 3 / 2 / 4 / 3;
+        }
+
+        .heart-grid-item:nth-child(11) {
+            grid-area: 3 / 4 / 4 / 5;
+        }
+
+        .heart-grid-item:nth-child(12) {
+            grid-area: 3 / 6 / 4 / 7;
+        }
+
+        /* Fourth row */
+        .heart-grid-item:nth-child(13) {
+            grid-area: 4 / 3 / 5 / 4;
+        }
+
+        .heart-grid-item:nth-child(14) {
+            grid-area: 4 / 5 / 5 / 6;
+        }
+
+        /* Fifth row */
+        .heart-grid-item:nth-child(15) {
+            grid-area: 5 / 3 / 6 / 4;
+        }
+
+        .heart-grid-item:nth-child(16) {
+            grid-area: 5 / 5 / 6 / 6;
+        }
+
+        /* Bottom point */
+        .heart-grid-item:nth-child(17) {
+            grid-area: 6 / 4 / 7 / 5;
+        }
+
+        /* The 18th photo is special and takes the center! */
+        .heart-grid-item:nth-child(18) {
+            grid-area: 4 / 4 / 5 / 5;
+            z-index: 10;
+            transform: scale(1.3) !important;
+            box-shadow: 0 0 30px #ff7eb3;
+        }
+
+        /* --- SECRET PASSWORD SCREEN --- */
+        .password-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #111;
+            z-index: 10000;
+            /* Must be higher than the curtain (9999) */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            text-align: center;
+            transition: opacity 1s ease, visibility 1s ease;
+        }
+
+        .password-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .password-title {
+            font-family: 'Playfair Display', serif;
+            color: #ffb6c1;
+            font-size: 3rem;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255, 182, 193, 0.4);
+        }
+
+        .password-hint {
+            font-family: 'Montserrat', sans-serif;
+            color: white;
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+            opacity: 0.8;
+        }
+
+        .password-input-wrapper {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .password-input {
+            padding: 15px 25px;
+            font-size: 1.2rem;
+            font-family: 'Montserrat', sans-serif;
+            border: 2px solid rgba(255, 182, 193, 0.4);
+            border-radius: 30px;
+            background: transparent;
+            color: white;
+            outline: none;
+            text-align: center;
+            width: 250px;
+            transition: border-color 0.3s ease;
+        }
+
+        .password-input:focus {
+            border-color: #ffb6c1;
+            box-shadow: 0 0 15px rgba(255, 182, 193, 0.2);
+        }
+
+        .password-submit {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 500;
+            color: #111;
+            background: #ffb6c1;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(255, 182, 193, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .password-submit:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 182, 193, 0.8);
+        }
+
+        .password-error {
+            color: #ff4d4d;
+            font-family: 'Montserrat', sans-serif;
+            margin-top: 20px;
+            font-size: 1rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .password-error.visible {
+            opacity: 1;
+        }
+
+
+        /* --- VINTAGE LETTER SECTION --- */
+        .vintage-letter-section {
+            width: 100vw;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 20px;
+            background: #000;
+            /* Matches the body background */
+            overflow: hidden;
+            /* Hide pages as they slide up */
+        }
+
+        .letter-stack {
+            position: relative;
+            width: 90vw;
+            max-width: 60vh;
+            /* Make width relative to height too so it stays perfectly 1:1 on wide screens */
+            height: auto;
+            aspect-ratio: 1/1;
+            /* Force perfect square */
+            margin: 0 auto;
+            /* Perfect horizontal centering inside the flex container */
+            perspective: 1000px;
+        }
+
+        .vintage-paper {
+            background-color: #f4ecd8;
+            /* Parchment color */
+            width: 100%;
+            height: 100%;
+            padding: 40px;
+            /* Reduced padding slightly to leave more room for text in a strict square */
+            box-sizing: border-box;
+            /* Prevent padding from blowing out the 1:1 ratio */
+            border-radius: 5px;
+            box-shadow:
+                0 0 20px rgba(0, 0, 0, 0.5),
+                /* Outer drop shadow for depth */
+                inset 0 0 40px rgba(180, 150, 100, 0.3);
+            /* Inner burnt/aged edge effect */
+            background-image: url('https://www.transparenttextures.com/patterns/aged-paper.png');
+            /* Subtle texture */
+
+            position: absolute;
+            /* Stack them all on top of each other */
+            top: 0;
+            left: 0;
+
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+
+            /* Initial state for ScrollTrigger reveal */
+            opacity: 0;
+            transform-origin: bottom center;
+            will-change: transform, opacity;
+        }
+
+        /* The little tape at the top */
+        .vintage-paper::before {
+            content: '';
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%) rotate(2deg);
+            width: 120px;
+            height: 35px;
+            background-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .vintage-text {
+            font-family: 'Playfair Display', serif;
+            color: #3e2723;
+            /* Dark brown ink */
+            font-size: clamp(1rem, 2.5vw, 1.25rem);
+            /* Dynamic font size that shrinks properly within the square */
+            line-height: 1.5;
+            text-align: left;
+            /* No more blocky justify spacing */
+            margin: 0;
+            /* Let flex gap handle spacing */
+        }
+
+        .vintage-signature {
+            font-family: 'Caveat', cursive;
+            color: #5d4037;
+            font-size: 2.5rem;
+            text-align: right;
+            margin-top: 30px;
+            transform: rotate(-5deg);
+            position: relative;
+            /* For the wax seal */
+        }
+
+        .wax-seal {
+            position: absolute;
+            bottom: -20px;
+            right: 0px;
+            width: 70px;
+            height: 70px;
+            background-color: #8b0000;
+            border-radius: 50%;
+            box-shadow:
+                0 4px 10px rgba(0, 0, 0, 0.4),
+                inset 0 0 15px rgba(0, 0, 0, 0.8),
+                inset 0 5px 5px rgba(255, 255, 255, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2rem;
+            color: #fffff0;
+            /* Ivory color */
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8), -1px -1px 2px rgba(255, 255, 255, 0.1);
+            transform: rotate(-15deg);
+            z-index: 5;
+        }
+
+        /* --- FINAL SLIDESHOW SECTION --- */
+        .slideshow-section {
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .slideshow-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .slide-item {
+            position: absolute;
+            width: 90vw;
+            max-width: 800px;
+            height: 80vh;
+            opacity: 0;
+            /* Hidden initially */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .slide-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            /* Don't crop, show full photo */
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(255, 192, 203, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .heart-grid {
+                width: 95vw;
+                gap: 3px;
+                max-height: 60vh;
+            }
+
+            .heart-section h1 {
+                font-size: 1.8rem !important;
+                margin-top: 10px !important;
+            }
+
+            .heart-section {
+                margin-top: 0;
+            }
+
+            .vintage-paper {
+                padding: 25px 20px;
+                /* Even tighter padding on mobile square */
+            }
+
+            .vintage-text {
+                font-size: clamp(0.9rem, 4vw, 1.15rem);
+                /* Ensure mobile text fits the smaller square */
+                text-align: left;
+                /* Better for reading on small screens */
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Canvas for falling hearts over the whole page -->
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- SECRET PASSWORD SCREEN (Intercepts Load) -->
+    <div class="password-screen" id="password-screen">
+        <h1 class="password-title">Who is this for? 🤫</h1>
+        <p class="password-hint">Enter my special nickname for you to unlock the surprise...</p>
+        <div class="password-input-wrapper">
+            <input type="password" id="password-input" class="password-input" placeholder="Enter nickname..."
+                autocomplete="off">
+            <button id="password-submit" class="password-submit">Unlock 🗝️</button>
+        </div>
+        <p class="password-error" id="password-error">Nope, that's not right! Try again 💖</p>
+    </div>
+
+    <!-- Loading Curtain overlay -->
+    <div class="curtain">
+        <div class="loader-msgs">
+            <div class="loader-msg active">Happy Birthday Kukuuu ❤️</div>
+            <div class="loader-msg">I love you a lot babyy ✨</div>
+            <div class="loader-msg">Hold on tight... Something Special is Coming Up!</div>
+            <div class="loader-msg">A special surprise is loading...</div>
+        </div>
+        <div class="loader-progress">
+            <div class="loader-bar"></div>
+        </div>
+        <div class="loader-info" style="margin-top:30px; font-size: 0.8rem; color: #666; font-style: italic;">Processing
+            backend... Please
+            wait ~20 seconds</div>
+    </div>
+
+
+    <!-- Hidden Background Audio (User must place song.mp3 in folder and update src) -->
+    <!-- Using a placeholder romantic track for now -->
+    <audio id="bg-music" loop>
+        <source src="./bg-audio.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="bg-music-2" loop>
+        <source src="./song2.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="bg-music-2" loop>
+        <source src="./song2.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Voice Note Audio (User must place voice-note.mp3 or .m4a in folder) -->
+    <audio id="voice-note">
+        <source src="./voice-note.mp3" type="audio/mpeg">
+        <source src="./voice-note.m4a" type="audio/mp4">
+    </audio>
+
+    <!-- NEW GALLERY SECTION -->
+    <div class="gallery-wrapper">
+        <div class="gallery-container">
+            <!-- Overlay that darkens corners to create the spherical fisheye lens look -->
+            <div class="vignette"></div>
+
+            <div class="gallery-grid">
+                <!-- 84 Items Total based on folder contents. -->
+                <div class="gallery-item"><img src="images/1653706231371 (1)(1).jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/2023-08-06 18.23.16.jpeg" alt="Memory"></div>
+                <div class="gallery-item"><video src="images/2023-11-12 21.40.mov" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><video src="images/2023-11-12 21.48.mov" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><video src="images/3e22ae38-66e4-4997-9284-e83a48ab2f8a.mp4" autoplay loop
+                        muted playsinline></video></div>
+
+                <div class="gallery-item"><img src="images/56FEE5C4-FEA3-4A5E-A506-C3DCBBB395B9.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/585E757C-6726-4CF1-AC0C-F7883E61BF5D.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/639d0b56-094f-4536-8917-f320f526555d.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/6772ee19-9dad-430f-bfe6-08cb50c6e0c9.jpg" alt="Memory"></div>
+                <div class="gallery-item"><video src="images/68c7d27d-470d-4d13-827b-e7d9d1a6fa34.mp4" autoplay loop
+                        muted playsinline></video></div>
+
+                <div class="gallery-item"><img src="images/857b8d29-6c32-4f90-b9a0-c50c44d4fce9.jpg" alt="Memory"></div>
+                <div class="gallery-item"><video src="images/Copy of Snapchat-1378432478(1).mp4" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><video src="images/Copy of Snapchat-839029563.mp4" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><img src="images/FullSizeRender.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG-20230723-WA0014.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/IMG_0178.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_0510.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_1749.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_20220605_120756.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_20221024_221349_556.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/IMG_2303.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_2305.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_2309.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_2382.PNG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_2483.JPG" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/IMG_2667.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_2668.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_2669.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_2805.PNG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_2864.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><video src="images/IMG_3823(1).MOV" autoplay loop muted playsinline></video>
+                </div>
+                <div class="gallery-item"><img src="images/IMG_3903.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_4238(1).jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_4497.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_4546.PNG" alt="Memory"></div>
+
+                <div class="gallery-item"><video src="images/IMG_5159.MOV" autoplay loop muted playsinline></video>
+                </div>
+                <div class="gallery-item"><img src="images/IMG_5165.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_5171.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_5270.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/IMG_5309(1).jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/PHOTO-2025-08-14-01-34-30.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-08-21-00-01-30.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-10-22-02-17-13.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-10-28-12-33-14.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-11-11-20-12-27.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/PHOTO-2025-11-16-19-04-16.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-11-16-19-04-17.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-11-21-01-39-11.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-11-25-21-47-26.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-11-25-21-47-28.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/PHOTO-2025-12-10-17-16-32.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-12-14-13-57-34.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2025-12-14-13-57-35.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-07-13-20-49.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-12-12-48-21.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-12-22-46-48.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-13-12-49-02.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-14-17-23-06.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-14-23-20-18.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-15-15-57-07.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-21-00-25-31.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2026-01-21-01-12-24.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/PHOTO-2026-02-13-00-13-42.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/Snapchat-1679548446.JPG" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/Snapchat-1737823612.JPG" alt="Memory"></div>
+
+                <div class="gallery-item"><video src="images/Snapchat-428509751.mp4" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><img src="images/Untitled design (2).png" alt="Memory"></div>
+                <div class="gallery-item"><video src="images/VIDEO-2026-01-27-12-21-01.mp4" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><video src="images/VIDEO-2026-02-16-13-16-19.mp4" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><video src="images/VIDEO-2026-02-16-20-08-06.mp4" autoplay loop muted
+                        playsinline></video></div>
+
+                <div class="gallery-item"><video src="images/VIDEO-2026-02-17-11-33-44.mp4" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><video src="images/VIDEO-2026-02-20-13-48-54.mp4" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><video src="images/VIDEO-2026-02-21-02-43-08.mp4" autoplay loop muted
+                        playsinline></video></div>
+                <div class="gallery-item"><img src="images/photo_1210@11-01-2024_00-21-54_thumb.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/photo_1211@11-01-2024_00-21-54_thumb.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/photo_1213@11-01-2024_00-21-54_thumb.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/photo_1429@11-02-2024_19-35-17_thumb.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/photo_1430@11-02-2024_19-35-26_thumb.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/photo_2023-07-14_21-44-46.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/photo_2023-07-14_21-44-47.jpg" alt="Memory"></div>
+
+                <div class="gallery-item"><img src="images/photo_2024-09-29_05-35-02.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/photo_879@19-11-2023_00-32-33_thumb.jpg" alt="Memory"></div>
+                <div class="gallery-item"><img src="images/photo_882@19-11-2023_00-32-33_thumb.jpg" alt="Memory"></div>
+                <!-- Hidden Letter added at the very end of the column scroll sequence -->
+                <div class="final-letter">
+                    <h1>Happy Birthday, My Love ✨</h1>
+                    <p>
+                        Every photo here is a memory I cherish, but they are just the beginning.
+                        Looking back at all these moments reminds me of how incredibly lucky I am to have you in my
+                        life.
+                    </p>
+                    <p>
+                        You bring so much light, laughter, and warmth to my world. Even in the quietest moments, just
+                        knowing you are there makes everything feel perfect.
+                    </p>
+                    <p>
+                        I promise to keep making these beautiful memories with you, to stand by your side through
+                        everything, and to always remind you how deeply and unconditionally you are loved.
+                    </p>
+                    <p>
+                        Thank you for being my person, my heart, and my everything. <br>
+                        I love you more than words can say. ❤️
+                    </p>
+
+                    <!-- Voice Note Button -->
+                    <button class="voice-btn" id="voice-btn">
+                        <span>▶️</span> Play Audio Message
+                    </button>
+                    <br>
+
+                    <!-- Surpise Button -->
+                    <button class="surprise-btn" id="confetti-btn">Click for one last surprise 🎁</button>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- NEW: HEART PHOTO COLLECTION GRID AT THE END OF VERTICAL SCROLL -->
+        <div class="heart-section" id="heart-wrapper">
+            <div class="heart-grid">
+                <div class="heart-grid-item"><img src="images-heart/1653706231371 (1)(1).jpg" alt="Heart Memory 1">
+                </div>
+                <div class="heart-grid-item"><img src="images-heart/2023-08-06 18.23.16.jpeg" alt="Heart Memory 2">
+                </div>
+                <div class="heart-grid-item"><img src="images-heart/585E757C-6726-4CF1-AC0C-F7883E61BF5D.JPG"
+                        alt="Heart Memory 3"></div>
+                <div class="heart-grid-item"><img src="images-heart/639d0b56-094f-4536-8917-f320f526555d.jpg"
+                        alt="Heart Memory 4"></div>
+
+                <div class="heart-grid-item"><img src="images-heart/IMG_0178.jpg" alt="Heart Memory 5"></div>
+                <div class="heart-grid-item"><img src="images-heart/IMG_1749.JPG" alt="Heart Memory 6"></div>
+                <div class="heart-grid-item"><img src="images-heart/IMG_20221024_221349_556.jpg" alt="Heart Memory 7">
+                </div>
+                <div class="heart-grid-item"><img src="images-heart/IMG_2305.jpg" alt="Heart Memory 8"></div>
+                <div class="heart-grid-item"><img src="images-heart/IMG_2667.JPG" alt="Heart Memory 9"></div>
+
+                <div class="heart-grid-item"><img src="images-heart/IMG_2668.JPG" alt="Heart Memory 10"></div>
+                <div class="heart-grid-item"><img src="images-heart/IMG_5165.jpg" alt="Heart Memory 11"></div>
+                <div class="heart-grid-item"><img src="images-heart/PHOTO-2025-12-14-13-57-35.jpg"
+                        alt="Heart Memory 12"></div>
+
+                <div class="heart-grid-item"><img src="images-heart/PHOTO-2026-01-12-12-48-21.jpg"
+                        alt="Heart Memory 13"></div>
+                <div class="heart-grid-item"><img src="images-heart/PHOTO-2026-01-13-12-49-02.jpg"
+                        alt="Heart Memory 14"></div>
+
+                <div class="heart-grid-item"><img src="images-heart/PHOTO-2026-01-14-17-23-06.jpg"
+                        alt="Heart Memory 15"></div>
+                <div class="heart-grid-item"><img src="images-heart/PHOTO-2026-01-14-23-20-18.jpg"
+                        alt="Heart Memory 16"></div>
+
+                <div class="heart-grid-item"><img src="images-heart/PHOTO-2026-01-15-15-57-07.jpg"
+                        alt="Heart Memory 17"></div>
+
+                <!-- 18th Special Center Photo -->
+                <div class="heart-grid-item"><img src="images-heart/PHOTO-2026-01-21-00-25-31.jpg"
+                        alt="Center Heart Memory"></div>
+            </div>
+            <!-- Heart Title -->
+            <h1
+                style="font-family: 'Playfair Display'; color: #ffb6c1; text-align:center; font-size: 3rem; text-shadow: 0 0 20px rgba(255,182,193,0.8); margin: 0; margin-top: 20px;">
+                Always Yours ❤️</h1>
+        </div>
+
+        <!-- NEW: VINTAGE LETTER SECTION (4 PAGES) -->
+        <div class="vintage-letter-section">
+            <div class="letter-stack">
+
+                <!-- Page 4 (Bottom-most) -->
+                <div class="vintage-paper page-4" style="z-index: 1;">
+                    <p class="vintage-text">
+                        Thank you mere saath rehne ke liye. Thank you mujhe choose karne ke liye. Thank you mujhe better
+                        banane ke liye.
+                    </p>
+                    <p class="vintage-text">
+                        Tu deserve karti hai duniya ka best. Tu deserve karti hai woh pyaar jo secure ho, woh support jo
+                        stable ho, woh insaan jo bhaage nahi. Aur main woh insaan banna chahta hoon.
+                    </p>
+                    <div class="vintage-signature">
+                        Happy Birthday meri kuki.<br>
+                        Main yahin hoon.<br>
+                        Aaj bhi. Kal bhi. Hamesha.<br><br>
+                        Forever yours,<br>
+                        Me.
+                        <div class="wax-seal">K</div>
+                    </div>
+                </div>
+
+                <!-- Page 3 -->
+                <div class="vintage-paper page-3" style="z-index: 2;">
+                    <p class="vintage-text">
+                        Is birthday par main tujhe bade promises nahi dena chahta jo sirf words bane rahein. Main tujhe
+                        effort dena chahta hoon. Presence dena chahta hoon. Consistency dena chahta hoon. Main chahta
+                        hoon jab tu kabhi bhi doubt kare, ya low feel kare, toh tujhe mere baare mein kabhi doubt na ho.
+                    </p>
+                    <p class="vintage-text">
+                        Aaj jab tu ek saal aur badi ho rahi hai, main bas yeh chahta hoon ki tu apne aap ko waise dekhe
+                        jaise main tujhe dekhta hoon. Beautiful. Capable. Loving. Rare. Tu ordinary nahi hai kuki. Tu
+                        meri zindagi ka sabse soft aur sabse powerful part hai.
+                    </p>
+                </div>
+
+                <!-- Page 2 -->
+                <div class="vintage-paper page-2" style="z-index: 3;">
+                    <p class="vintage-text">
+                        Mujhe teri har cheez pyaari lagti hai. Tera care karna. Tera overthink karna. Tera gussa. Tera
+                        possessive hona. Tera emotional ho jana. Tera mujhe samjhana. Tera mujhe sudharna. Tu strong bhi
+                        hai aur soft bhi. Tu practical bhi hai aur pure dil wali bhi. Aur shayad isi balance ki wajah se
+                        tu itni special hai.
+                    </p>
+                    <p class="vintage-text">
+                        Main maanta hoon main perfect nahi hoon. Main galti karta hoon. Kabhi kabhi late samajhta hoon.
+                        Kabhi react galat karta hoon. Par ek cheez jo kabhi change nahi hogi woh yeh hai ki tu mere liye
+                        kitni important hai. Tera respect, tera self worth, tera sukoon mere liye matter karta hai. Aur
+                        main seekh raha hoon. Sirf tere liye nahi, par humare liye.
+                    </p>
+                </div>
+
+                <!-- Page 1 (Top-most) -->
+                <div class="vintage-paper page-1" style="z-index: 4;">
+                    <p class="vintage-text" style="font-size: 1.6rem; text-align: center;">
+                        My dearest Kuki,
+                    </p>
+                    <p class="vintage-text">
+                        Happy Birthday meri jaan.
+                    </p>
+                    <p class="vintage-text">
+                        Aaj ka din mere liye bas ek birthday nahi hai. Yeh woh din hai jab duniya ko tu mili thi, aur
+                        shayad mujhe meri zindagi ka sabse important hissa milne ki kahani shuru hui thi. Kabhi kabhi
+                        main genuinely sochta hoon ki agar tu meri life mein nahi aati toh main kaisa hota. Tu ne sirf
+                        meri life mein entry nahi ki, tu ne usko meaning diya.
+                    </p>
+                    <p class="vintage-text">
+                        Tu jab hansti hai na, mujhe sach mein sukoon milta hai. Jab tu upset hoti hai toh main andar se
+                        hil jaata hoon. Tu mere liye sirf ek insaan nahi hai jisse main pyaar karta hoon. Tu meri aadat
+                        bhi nahi hai. Tu meri choice hai. Roz ki choice. Main har din tujhe hi choose karna chahta hoon.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- NEW: FINAL SLIDESHOW SECTION -->
+        <div class="slideshow-section" id="final-slideshow">
+            <div class="slideshow-container" id="slideshow-container">
+                <!-- Javascript will dynamically inject ALL images from the gallery grid here -->
+            </div>
+        </div>
+
+        <!-- SURPRISE VIDEO OVERLAY -->
+        <!-- Put your final surprise video named surprise.mp4 in the folder -->
+        <div id="video-overlay">
+            <video id="surprise-video" src="./surprise.mp4" playsinline></video>
+        </div>
+
+        <script>
+            // --- SECRET PASSWORD LOGIC ---
+            const passwordScreen = document.getElementById('password-screen');
+            const passwordInput = document.getElementById('password-input');
+            const passwordSubmit = document.getElementById('password-submit');
+            const passwordError = document.getElementById('password-error');
+
+            const CORRECT_PASSWORD = "kukuuu"; // The secret nickname
+
+            passwordSubmit.addEventListener('click', () => {
+                const guess = passwordInput.value.trim().toLowerCase();
+
+                if (guess === CORRECT_PASSWORD) {
+                    // Success! Hide the password screen.
+                    passwordScreen.classList.add('hidden');
+                    passwordError.classList.remove('visible');
+
+                    // Now start the loading curtain timer!
+                    startTime = Date.now();
+                    requestAnimationFrame(updateLoader);
+
+                    // Start background music immediately!
+                    const bgMusic = document.getElementById('bg-music');
+                    if (bgMusic) {
+                        bgMusic.volume = 0.5; // Starts at half volume
+                        bgMusic.play().catch(e => console.log("Audio play failed on login:", e));
+                    }
+
+                } else {
+                    // Wrong password
+                    passwordError.classList.add('visible');
+
+                    // Add a tiny shake animation
+                    passwordInput.style.transform = "translateX(-10px)";
+                    setTimeout(() => passwordInput.style.transform = "translateX(10px)", 50);
+                    setTimeout(() => passwordInput.style.transform = "translateX(-10px)", 100);
+                    setTimeout(() => passwordInput.style.transform = "translateX(0)", 150);
+                }
+            });
+
+            // Also allow pressing "Enter"
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    passwordSubmit.click();
+                }
+            });
+
+            // --- LOADING CURTAIN LOGIC ---
+            // Simulating the 20 second "backend" timer
+            const waitTimeMs = 20000;
+            const loaderBar = document.querySelector('.loader-bar');
+            const curtain = document.querySelector('.curtain');
+            const bgMusic = document.getElementById('bg-music');
+            let startTime; // Will be set when password is correct
+
+            // Message Rotator Logic
+            const msgs = document.querySelectorAll('.loader-msg');
+            let currentMsg = 0;
+            let msgInterval;
+
+            if (msgs.length > 0) {
+                // Change message every 7 seconds
+                msgInterval = setInterval(() => {
+                    msgs[currentMsg].classList.remove('active');
+                    currentMsg = (currentMsg + 1) % msgs.length;
+                    msgs[currentMsg].classList.add('active');
+                }, 7000);
+            }
+
+            function updateLoader() {
+                if (!startTime) return; // Don't run if password hasn't been entered
+
+                let elapsed = Date.now() - startTime;
+                let percent = Math.min((elapsed / waitTimeMs) * 100, 100);
+                loaderBar.style.width = percent + "%";
+
+                if (elapsed < waitTimeMs) {
+                    requestAnimationFrame(updateLoader);
+                } else {
+                    // Done loading wait time
+                    if (msgInterval) {
+                        clearInterval(msgInterval);
+                        // Clear the text out beautifully
+                        msgs.forEach(msg => msg.classList.remove('active'));
+                    }
+
+                    // Auto-hide curtain and start experience
+                    curtain.classList.add('hidden');
+                    document.body.classList.remove('loading');
+
+                    // Allow tiny delay for CSS transiton before refreshing layout
+                    setTimeout(() => {
+                        ScrollTrigger.refresh();
+                        initParticles();
+                    }, 500);
+                }
+            }
+
+            // --- PARTICLE (HEARTS) LOGIC ---
+            const canvas = document.getElementById('particle-canvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            let animationId;
+
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            class Heart {
+                constructor() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * -canvas.height; // Start above screen
+                    this.size = Math.random() * 15 + 5;
+                    this.speedY = Math.random() * 2 + 1;
+                    this.speedX = (Math.random() - 0.5) * 1;
+                    this.color = `hsla(${Math.random() * 30 + 330}, 80%, 65%, ${Math.random() * 0.5 + 0.3})`;
+                    this.rotation = Math.random() * Math.PI * 2;
+                    this.rotationSpeed = (Math.random() - 0.5) * 0.05;
+                }
+                update() {
+                    this.y += this.speedY;
+                    this.x += this.speedX;
+                    this.rotation += this.rotationSpeed;
+
+                    // Reset if off bottom
+                    if (this.y > canvas.height + 50) {
+                        this.y = -50;
+                        this.x = Math.random() * canvas.width;
+                    }
+                }
+                draw() {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.rotation);
+                    ctx.scale(this.size / 20, this.size / 20); // Normalize scale based on size
+                    ctx.fillStyle = this.color;
+
+                    // Draw heart shape
+                    ctx.beginPath();
+                    ctx.moveTo(0, 5);
+                    ctx.bezierCurveTo(0, 5, 0, 0, -10, 0);
+                    ctx.bezierCurveTo(-20, 0, -20, 15, -20, 15);
+                    ctx.bezierCurveTo(-20, 25, -10, 35, 0, 45);
+                    ctx.bezierCurveTo(10, 35, 20, 25, 20, 15);
+                    ctx.bezierCurveTo(20, 15, 20, 0, 10, 0);
+                    ctx.bezierCurveTo(0, 0, 0, 5, 0, 5);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            function initParticles() {
+                particles = [];
+                let count = window.innerWidth < 768 ? 20 : 50; // Less on mobile for performance
+                for (let i = 0; i < count; i++) {
+                    particles.push(new Heart());
+                }
+                animateParticles();
+            }
+
+            function animateParticles() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.update();
+                    p.draw();
+                });
+                animationId = requestAnimationFrame(animateParticles);
+            }
+
+            // --- POLAROID FLIP SETUP ---
+            const cuteNotes = [
+                "You don’t even realize how stunning you are 🤍✨",
+                "This moment lives rent free in my mind 🫶💭",
+                "Every time I see this, I fall again 💘",
+                "You make ordinary days feel special 🌸",
+                "Still one of my softest memories 🥹",
+                "I could replay this a thousand times 🎞️💫",
+                "Your smile does something to me 😌💓",
+                "This right here… my peace 🌿🤍",
+                "You make my world lighter ✨🌎",
+                "I didn’t know happiness looked like this 😊💛",
+                "My favorite human, always 🥰",
+                "This memory feels warm 🔥❤️",
+                "You glow differently in my eyes ✨😍",
+                "I’d choose this moment again and again ♾️💞",
+                "You make everything better just by being there 🤍",
+                "This one hits different 💫",
+                "I remember how my heart felt here 💓",
+                "You’re my calm in chaos 🌊🤍",
+                "Still obsessed with this memory 😍📸",
+                "You looked unreal that day 🌟💖",
+                "This smile? Dangerous 😏💕",
+                "You’re my soft place to land 🫂🤍",
+                "Every frame with you is my favorite 🎥💘",
+                "This was pure happiness 🥹✨",
+                "You have no idea what you mean to me ❤️",
+                "One of those moments I’ll never forget 🕰️💭",
+                "You make time slow down ⏳💞",
+                "My heart knew right then 💘",
+                "This one still gives me butterflies 🦋💕",
+                "You’re the best part of my days 🌤️❤️",
+                "I love how happy we look here 😊📸",
+                "This feels like home 🏡🤍",
+                "You and that smile… unbeatable 😍✨",
+                "I’d relive this in a heartbeat 💓🔁",
+                "You’re my always ♾️❤️",
+                "Still smiling because of this 😊💫",
+                "You make everything feel right 💛",
+                "This memory is gold 🏆✨",
+                "I didn’t stand a chance with you 😌💘",
+                "Your happiness is my favorite thing 😍🌸",
+                "This was such a pure moment 🤍✨",
+                "You’re my kind of forever 💍💖",
+                "I melt every time I see this 🫠💕",
+                "You make my heart so full 🥰💓",
+                "This was us at our best 🌟🤍",
+                "I love how effortless this felt 💫",
+                "You’re my favorite notification 📱💘",
+                "This picture feels like a hug 🫂📸",
+                "I’m so lucky it’s you 🍀❤️",
+                "Your laugh is my favorite sound 😂💖",
+                "This one will never get old ⏳💞",
+                "You’re the reason behind this smile 😊❤️",
+                "I remember feeling so grateful here 🙏💛",
+                "You make love look easy 💕✨",
+                "Still one of my happiest memories 🥹🌸",
+                "You’re my person. Always. 🤍♾️",
+                "This moment changed something in me 💫❤️",
+                "I’d freeze time right here ❄️⏳",
+                "You make life sweeter 🍯💕",
+                "This one means more than you know 💖",
+                "My heart felt safe here 🫶🤍",
+                "You’re my daily dose of happiness ☀️💛",
+                "I look at this and just smile 😊✨",
+                "You’re everything I hoped for 💘",
+                "This was pure magic 🪄✨",
+                "You’re my constant 🌙❤️",
+                "Still my favorite chapter 📖💕",
+                "You make the simplest things unforgettable 🌸💫",
+                "This smile of yours wins every time 😍🏆",
+                "You’re my best decision 💍💖",
+                "This memory still feels fresh 🌷✨",
+                "You’re my kind of perfect 😌💕",
+                "I love the way we look at each other 👀❤️",
+                "This right here is everything 💞",
+                "You make my world brighter 🌞✨",
+                "I felt so lucky in this moment 🍀💓",
+                "You’re my forever mood 💖",
+                "This one holds a piece of my heart 💘📸",
+                "I’d pick you in every lifetime ♾️💕",
+                "You make my heart race 🏃‍♂️💓",
+                "Still can’t believe you’re mine 😍❤️",
+                "This was happiness in its purest form 🤍✨",
+                "I’d do it all over again with you 🔁💖"
+            ];
+
+            document.querySelectorAll('.gallery-item').forEach((item, index) => {
+                // Keep the original media content
+                const media = item.innerHTML;
+
+                // Pick a note sequentially so there are no repetitions
+                const uniqueNote = cuteNotes[index % cuteNotes.length];
+
+                // Replace inner HTML with the 3D flipping structure
+                item.innerHTML = `
+                <div class="gallery-item-inner">
+                    <div class="gallery-item-front">
+                        ${media}
+                    </div>
+                    <div class="gallery-item-back">
+                        <p>${uniqueNote}</p>
+                    </div>
+                </div>
+            `;
+            });
+
+            // --- GALLERY SCROLL LOGIC ---
+            gsap.registerPlugin(ScrollTrigger);
+
+            const grid = document.querySelector(".gallery-grid");
+
+            function getScrollAmount() {
+                let gridWidth = grid.scrollWidth;
+                return -(gridWidth - window.innerWidth + 50); // Added 50px buffer
+            }
+
+            const tlGallery = gsap.timeline({
+                scrollTrigger: {
+                    trigger: ".gallery-wrapper",
+                    start: "top top",
+                    end: "bottom bottom",
+                    scrub: 1.5,
+                    pin: ".gallery-container",
+                    invalidateOnRefresh: true
+                }
+            });
+
+            tlGallery.to(grid, {
+                x: getScrollAmount, // Slide horizontally dynamically based on actual width
+                ease: "none", // Smooth linear speed during scroll
+                duration: 1
+            }, 0);
+
+            // --- HEART GRID REVEAL ANIMATION (VERTICAL SCROLL) ---
+            ScrollTrigger.create({
+                trigger: "#heart-wrapper",
+                start: "top center", // Activates when the top of the heart section hits the middle of the screen
+                onEnter: () => {
+                    // Fire a custom confetti blast!
+                    confetti({
+                        particleCount: 150,
+                        spread: 100,
+                        origin: { y: 0.6 },
+                        colors: ['#ffb6c1', '#ff7eb3', '#ff0000']
+                    });
+
+                    // Pop in the heart images!
+                    gsap.to(".heart-grid-item", {
+                        opacity: 1,
+                        scale: 1,
+                        duration: 0.8,
+                        stagger: 0.05,
+                        ease: "back.out(1.7)"
+                    });
+                }
+            });
+
+            // --- VINTAGE LETTER REVEAL & STACK SCROLL ANIMATION ---
+
+            // First, set tiny dynamic rotations so they literally look stacked
+            gsap.set(".page-1", { rotation: -1.5 });
+            // First, set tiny dynamic rotations so they literally look stacked
+            gsap.set(".page-1", { rotation: -1.5 });
+            gsap.set(".page-2", { rotation: 0.5 });
+            gsap.set(".page-3", { rotation: -0.5 });
+            gsap.set(".page-4", { rotation: 1 });
+
+            // Split text into words for typewriter effect
+            document.querySelectorAll('.vintage-text').forEach(p => {
+                const words = p.innerText.split(' ');
+                p.innerHTML = '';
+                words.forEach(word => {
+                    if (word.trim() === '') return;
+                    const span = document.createElement('span');
+                    span.innerHTML = word + '&nbsp;';
+                    span.style.opacity = '0';
+                    span.className = 'type-word';
+                    span.style.display = 'inline-block';
+                    p.appendChild(span);
+                });
+            });
+
+            // We also add continuous confetti while pinned!
+            let letterConfettiInterval;
+
+            const tlLetter = gsap.timeline({
+                scrollTrigger: {
+                    trigger: ".vintage-letter-section",
+                    start: "top top", // Trigger when top of section hits top of viewport
+                    end: "+=300%", // Pin for 3 times the viewport height (enough time to read 4 pages)
+                    pin: true,
+                    scrub: 0.5, // Smooth scrubbing
+                    onEnter: () => {
+                        // Start raining confetti continuously!
+                        letterConfettiInterval = setInterval(() => {
+                            confetti({
+                                particleCount: 15,
+                                spread: 180,
+                                origin: { y: -0.1, x: Math.random() }, // Fall from top, random horizontal
+                                colors: ['#ffb6c1', '#ff7eb3', '#ffffff'],
+                                gravity: 0.5, // Float down gently
+                                scalar: 0.8, // Slightly smaller confetti
+                                ticks: 200 // Last a bit longer on screen
+                            });
+                        }, 500); // Fire a small burst every half second
+                    },
+                    onLeave: () => clearInterval(letterConfettiInterval),
+                    onEnterBack: () => {
+                        letterConfettiInterval = setInterval(() => {
+                            confetti({
+                                particleCount: 15,
+                                spread: 180,
+                                origin: { y: -0.1, x: Math.random() },
+                                colors: ['#ffb6c1', '#ff7eb3', '#ffffff'],
+                                gravity: 0.5,
+                                scalar: 0.8,
+                                ticks: 200
+                            });
+                        }, 500);
+                    },
+                    onLeaveBack: () => clearInterval(letterConfettiInterval)
+                }
+            });
+
+            // Step 1: Fade the whole stack in as you arrive at it
+            tlLetter.to(".vintage-paper", {
+                opacity: 1,
+                duration: 0.5,
+                stagger: 0.1,
+                ease: "power1.inOut"
+            }, 0);
+
+            // Step 1.5: Type out Page 1
+            tlLetter.to(".page-1 .type-word", {
+                opacity: 1,
+                duration: 0.05,
+                stagger: 0.05,
+                ease: "none"
+            }, 0.2); // Start slightly after page starts fading in
+
+            // Step 2: User reads Page 1, keeps scrolling -> Page 1 slides up and fades away
+            tlLetter.to(".page-1", {
+                yPercent: -120, // Slide up out of frame
+                rotation: -5,   // Tilt playfully as it leaves
+                opacity: 0,
+                duration: 1,
+                ease: "power2.inOut"
+            }, "+=0.5"); // Pause briefly so they can read it before the scroll triggers the move
+
+            // Step 2.5: Type out Page 2 as it becomes visible
+            tlLetter.to(".page-2 .type-word", {
+                opacity: 1,
+                duration: 0.05,
+                stagger: 0.05,
+                ease: "none"
+            }, "-=0.2"); // Overlap slightly with the slide out of page 1
+
+            // Step 3: Page 2 slides away
+            tlLetter.to(".page-2", {
+                yPercent: -120,
+                rotation: 4,
+                opacity: 0,
+                duration: 1,
+                ease: "power2.inOut"
+            }, "+=0.5");
+
+            // Step 3.5: Type out Page 3
+            tlLetter.to(".page-3 .type-word", {
+                opacity: 1,
+                duration: 0.05,
+                stagger: 0.05,
+                ease: "none"
+            }, "-=0.2");
+
+            // Step 4: Page 3 slides away, leaving Page 4 (the end)
+            tlLetter.to(".page-3", {
+                yPercent: -120,
+                rotation: -3,
+                opacity: 0,
+                duration: 1,
+                ease: "power2.inOut"
+            }, "+=0.5");
+
+            // Step 4.5: Type out Page 4
+            tlLetter.to(".page-4 .type-word", {
+                opacity: 1,
+                duration: 0.05,
+                stagger: 0.05,
+                ease: "none"
+            }, "-=0.2");
+
+            // Fade in the signature and wax seal at the very end
+            gsap.set(".vintage-signature", { opacity: 0 });
+            gsap.set(".wax-seal", { opacity: 0, scale: 5 }); // Hide seal and scale up
+
+            tlLetter.to(".vintage-signature", {
+                opacity: 1,
+                duration: 1,
+                ease: "power2.out"
+            });
+
+            // The massive "STAMP!" animation
+            tlLetter.to(".wax-seal", {
+                opacity: 1,
+                scale: 1,
+                duration: 0.5,
+                ease: "back.out(2)" // Bounces aggressively into place like a real stamp
+            }, "-=0.2"); // Overlap the signature fade-in slightly
+
+            // --- FINAL AUTOMATED SLIDESHOW & AUDIO CROSSFADE ---
+            const track1 = document.getElementById('bg-music');
+            const track2 = document.getElementById('bg-music-2');
+
+            // Dynamically populate the final slideshow with ALL images from the gallery (skipping videos)
+            const galleryImages = document.querySelectorAll('.gallery-grid img');
+            const slideshowContainer = document.getElementById('slideshow-container');
+
+            galleryImages.forEach(img => {
+                const slideItem = document.createElement('div');
+                slideItem.className = 'slide-item';
+                const clonedImg = document.createElement('img');
+                clonedImg.src = img.src;
+                slideItem.appendChild(clonedImg);
+                slideshowContainer.appendChild(slideItem);
+            });
+
+            // Set up the Slideshow Timeline
+            const slides = gsap.utils.toArray('#slideshow-container .slide-item');
+            const tlSlideshow = gsap.timeline({ paused: true });
+
+            if (slides.length > 0) {
+                const totalTargetDuration = 90; // Exactly 1 minute 30 seconds
+                const timeBetweenSlides = totalTargetDuration / slides.length;
+                const fadeDuration = Math.min(1.0, timeBetweenSlides * 0.4); // Smooth crossfade 
+
+                slides.forEach((slide, index) => {
+                    const img = slide.querySelector('img');
+                    gsap.set(img, { scale: 1 });
+
+                    // Fade In
+                    tlSlideshow.to(slide, { opacity: 1, duration: fadeDuration, ease: "power1.inOut" }, index * timeBetweenSlides);
+                    // Slow zoom (Ken Burns) for the duration it's visible
+                    tlSlideshow.to(img, { scale: 1.05, duration: timeBetweenSlides + fadeDuration, ease: "none" }, index * timeBetweenSlides);
+                    // Fade Out (Crossfades perfectly into the next slide's Fade In)
+                    tlSlideshow.to(slide, { opacity: 0, duration: fadeDuration, ease: "power1.inOut" }, (index * timeBetweenSlides) + timeBetweenSlides);
+                });
+            }
+
+            // ScrollTrigger to detect when we reach the slideshow section
+            ScrollTrigger.create({
+                trigger: ".slideshow-section",
+                start: "top center", // When top of the slideshow hits the middle of viewport
+                onEnter: () => {
+                    // Start Slideshow
+                    tlSlideshow.play(0); // Play from beginning
+
+                    // Crossfade Audio: Fade out Track 1, Fade in Track 2
+                    if (track1 && !track1.paused) {
+                        gsap.to(track1, { volume: 0, duration: 3, onComplete: () => track1.pause() });
+                    }
+                    if (track2) {
+                        track2.volume = 0;
+                        track2.play().catch(e => console.log("Track 2 play failed:", e));
+                        gsap.to(track2, { volume: 0.5, duration: 3 });
+                    }
+                },
+                onLeaveBack: () => {
+                    // User scrolled back up! Stop slideshow and Reverse the audio crossfade
+                    tlSlideshow.pause();
+                    gsap.to(slides, { opacity: 0, duration: 1 }); // Quickly fade out any active slides
+
+                    if (track2 && !track2.paused) {
+                        gsap.to(track2, { volume: 0, duration: 2, onComplete: () => track2.pause() });
+                    }
+                    if (track1) {
+                        track1.volume = 0;
+                        track1.play().catch(e => console.log("Track 1 resume failed:", e));
+                        gsap.to(track1, { volume: 0.5, duration: 2 });
+                    }
+                }
+            });
+
+            // --- CONFETTI & VIDEO OVERLAY LOGIC ---
+            const surpriseOverlay = document.getElementById('video-overlay');
+            const surpriseVideo = document.getElementById('surprise-video');
+
+            document.getElementById('confetti-btn').addEventListener('click', function () {
+
+                // 1. MASSIVE SKY SHOT BLAST
+                confetti({
+                    particleCount: 200,
+                    spread: 120,
+                    origin: { y: 1.0, x: 0.5 }, // Starts from bottom center
+                    startVelocity: 70,
+                    colors: ['#ffb6c1', '#ff7eb3', '#ff758c', '#ffffff'],
+                    zIndex: 100000
+                });
+
+                // 2. CONTINUOUS FIREWORKS FOR 3 SECONDS
+                var duration = 3 * 1000;
+                var animationEnd = Date.now() + duration;
+                var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100000 };
+
+                function randomInRange(min, max) {
+                    return Math.random() * (max - min) + min;
+                }
+
+                var interval = setInterval(function () {
+                    var timeLeft = animationEnd - Date.now();
+
+                    if (timeLeft <= 0) {
+                        return clearInterval(interval);
+                    }
+
+                    var particleCount = 50 * (timeLeft / duration);
+                    confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                    confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+                }, 250);
+
+                // 3. SHOW VIDEO OVERLAY WITH AUDIO AFTER THE BLAST
+                setTimeout(() => {
+                    surpriseOverlay.classList.add('active');
+                    const musicEl = document.getElementById('bg-music');
+                    if (musicEl) musicEl.pause(); // Pause background music cleanly
+                    surpriseVideo.currentTime = 0; // Start from beginning
+                    surpriseVideo.play().catch(e => console.log("Video play failed (needs user interaction or valid src):", e));
+                }, 1200); // 1.2 second delay so they see the blast first
+
+            });
+
+            // 4. VANISH VIDEO WHEN IT ENDS
+            surpriseVideo.addEventListener('ended', () => {
+                surpriseOverlay.classList.remove('active');
+                const musicEl = document.getElementById('bg-music');
+                if (musicEl) musicEl.play().catch(e => console.log("Audio resume failed:", e)); // Resume background music natively
+            });
+
+            // --- VOICE NOTE LOGIC ---
+            const voiceBtn = document.getElementById('voice-btn');
+            const voiceNote = document.getElementById('voice-note');
+            let isVoicePlaying = false;
+
+            voiceBtn.addEventListener('click', () => {
+                const musicEl = document.getElementById('bg-music');
+
+                if (!isVoicePlaying) {
+                    // Play voice note
+                    if (musicEl) musicEl.volume = 0.1; // Duck background music to 10%
+                    voiceNote.currentTime = 0;
+                    voiceNote.volume = 0.5; // Match starting background music volume
+                    voiceNote.play().catch(e => {
+                        console.log("Voice Note failed to play:", e);
+                        alert("Make sure you put a file named 'voice-note.mp3' in the folder!");
+                    });
+
+                    isVoicePlaying = true;
+                    voiceBtn.classList.add('playing');
+                    voiceBtn.innerHTML = '<span>⏸️</span> Listening...';
+                } else {
+                    // Stop voice note early
+                    voiceNote.pause();
+                    if (musicEl) musicEl.volume = 0.5; // Restore back to 50%
+
+                    isVoicePlaying = false;
+                    voiceBtn.classList.remove('playing');
+                    voiceBtn.innerHTML = '<span>▶️</span> Play Audio Message';
+                }
+            });
+
+        </script>
+
+</body>
+
+</html>
