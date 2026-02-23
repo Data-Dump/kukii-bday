@@ -893,6 +893,60 @@
             box-shadow: 0 0 30px rgba(255, 192, 203, 0.2);
         }
 
+        .final-action-btn {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-family: 'Playfair Display', serif;
+            color: #fff;
+            background: linear-gradient(45deg, #ff758c, #ff7eb3);
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(255, 117, 140, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .final-action-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 117, 140, 0.8);
+        }
+
+        /* --- FINAL SLIDESHOW MESSAGE --- */
+        .final-slideshow-message {
+            position: absolute;
+            width: 80vw;
+            max-width: 800px;
+            z-index: 20;
+            opacity: 0;
+            /* Hidden during the slideshow */
+            pointer-events: none;
+            /* Let clicks pass through if needed */
+            color: #fff;
+            text-align: center;
+            font-family: 'Playfair Display', serif;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 182, 193, 0.2);
+        }
+
+        .final-slideshow-message h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #ffb6c1;
+            text-shadow: 0 0 10px rgba(255, 182, 193, 0.8);
+        }
+
+        .final-slideshow-message p {
+            font-size: 1.25rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 300;
+        }
+
         @media (max-width: 768px) {
             .heart-grid {
                 width: 95vw;
@@ -1257,10 +1311,35 @@
             </div>
         </div>
 
+        <!-- Audio for the Grand Finale Celebration (User must provide celebration.mp3) -->
+        <audio id="celebration-sfx">
+            <source src="./celebration.mp3" type="audio/mpeg">
+        </audio>
+
+        <!-- Final Blackout Screen -->
+        <div id="blackout-screen"
+            style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:black;z-index:99999;opacity:0;pointer-events:none;transition: opacity 2s ease;">
+        </div>
+
         <!-- NEW: FINAL SLIDESHOW SECTION -->
         <div class="slideshow-section" id="final-slideshow">
             <div class="slideshow-container" id="slideshow-container">
                 <!-- Javascript will dynamically inject ALL images from the gallery grid here -->
+            </div>
+
+            <!-- FINAL MESSAGE THAT APPEARS AFTER SLIDESHOW -->
+            <div class="final-slideshow-message" id="final-slideshow-message">
+                <h1>Happy Birthday, my Kuki ❤️</h1>
+                <p>I know I couldn’t do as much as I wanted for you this time, and I genuinely feel bad about that. You
+                    deserve so much more than I was able to give today. But please don’t think this is all I have for
+                    you. This is just one day, and there are so many more moments ahead of us.</p>
+                <p>I promise I will make it up to you properly. Not just with words, but with real effort and real
+                    actions.</p>
+                <p>Until then, just remember this clearly. I love you. Not casually, not temporarily, but truly and
+                    completely. Ever and forever.</p>
+                <p>Happy Birthday once again, my Kuki. You mean more to me than you even know. 💕</p>
+
+                <button class="final-action-btn" id="grand-finale-btn">Click Here!</button>
             </div>
         </div>
 
@@ -1789,6 +1868,27 @@
                     // Fade Out (Crossfades perfectly into the next slide's Fade In)
                     tlSlideshow.to(slide, { opacity: 0, duration: fadeDuration, ease: "power1.inOut" }, (index * timeBetweenSlides) + timeBetweenSlides);
                 });
+
+                // AT THE VERY END (90 Seconds Mark):
+                // 1. Audio Crossfade Back to Song 1
+                tlSlideshow.add(() => {
+                    if (track2 && !track2.paused) {
+                        gsap.to(track2, { volume: 0, duration: 3, onComplete: () => track2.pause() });
+                    }
+                    if (track1) {
+                        track1.volume = 0;
+                        track1.play().catch(e => console.log("Track 1 resume failed:", e));
+                        gsap.to(track1, { volume: 0.5, duration: 3 });
+                    }
+                }, totalTargetDuration);
+
+                // 2. Fade in the Beautiful Coda Message over the dark background
+                tlSlideshow.to("#final-slideshow-message", {
+                    opacity: 1,
+                    duration: 4,
+                    ease: "power2.inOut",
+                    pointerEvents: "auto" // Allow them to highlight text if they want
+                }, totalTargetDuration);
             }
 
             // ScrollTrigger to detect when we reach the slideshow section
@@ -1813,6 +1913,13 @@
                     // User scrolled back up! Stop slideshow and Reverse the audio crossfade
                     tlSlideshow.pause();
                     gsap.to(slides, { opacity: 0, duration: 1 }); // Quickly fade out any active slides
+
+                    // Remove Blackout if active
+                    const blackout = document.getElementById('blackout-screen');
+                    if (blackout) {
+                        blackout.style.opacity = '0';
+                        blackout.style.pointerEvents = 'none';
+                    }
 
                     if (track2 && !track2.paused) {
                         gsap.to(track2, { volume: 0, duration: 2, onComplete: () => track2.pause() });
@@ -1878,6 +1985,71 @@
                 surpriseOverlay.classList.remove('active');
                 const musicEl = document.getElementById('bg-music');
                 if (musicEl) musicEl.play().catch(e => console.log("Audio resume failed:", e)); // Resume background music natively
+            });
+
+            // --- GRAND FINALE BUTTON LOGIC ---
+            document.getElementById('grand-finale-btn').addEventListener('click', function () {
+                const sfx = document.getElementById('celebration-sfx');
+                if (sfx) {
+                    sfx.currentTime = 0;
+                    sfx.volume = 0.8;
+                    sfx.play().catch(e => console.log('SFX play failed:', e));
+                }
+
+                // CONTINUOUS CONFETTI & SKYSHOTS FOR 10 SECONDS
+                const duration = 10 * 1000;
+                const animationEnd = Date.now() + duration;
+                const defaults = { startVelocity: 45, spread: 360, ticks: 100, zIndex: 100000 };
+
+                function randomInRange(min, max) {
+                    return Math.random() * (max - min) + min;
+                }
+
+                const interval = setInterval(function () {
+                    const timeLeft = animationEnd - Date.now();
+
+                    if (timeLeft <= 0) {
+                        clearInterval(interval);
+
+                        // HUGE KISS SHOWER AT THE END
+                        confetti({
+                            particleCount: 300,
+                            spread: 180,
+                            origin: { y: 0.2, x: 0.5 }, // Falls from top center
+                            startVelocity: 50,
+                            gravity: 1.5,
+                            ticks: 200,
+                            colors: ['#ff0000', '#ff69b4', '#8b0000', '#ff1493', '#ffc0cb'], // Red/pink kiss shower
+                            zIndex: 100000
+                        });
+
+                        // FADE TO BLACK
+                        setTimeout(() => {
+                            const blackout = document.getElementById('blackout-screen');
+                            if (blackout) {
+                                blackout.style.opacity = '1';
+                                blackout.style.pointerEvents = 'auto'; // Block further clicks
+                            }
+                        }, 2500); // Wait 2.5 seconds for the kisses to fall, then fade out
+
+                        return;
+                    }
+
+                    const particleCount = 50 * (timeLeft / duration);
+                    // Shoot from left and right bounds constantly
+                    confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                    confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+                    // Occasional center shot
+                    if (Math.random() > 0.5) {
+                        confetti({
+                            particleCount: 30,
+                            spread: 80,
+                            origin: { y: 1, x: 0.5 },
+                            startVelocity: 60,
+                            colors: ['#ffb6c1', '#ffffff', '#ff7eb3']
+                        });
+                    }
+                }, 250);
             });
 
             // --- VOICE NOTE LOGIC ---
